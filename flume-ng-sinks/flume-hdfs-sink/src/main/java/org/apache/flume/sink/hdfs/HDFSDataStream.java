@@ -83,6 +83,9 @@ public class HDFSDataStream extends AbstractHDFSWriter {
 
     serializer = EventSerializerFactory.getInstance(
         serializerType, serializerContext, outStream);
+
+    logger.info("EventSerializer:"+serializer.getClass().getSimpleName());
+
     if (appending && !serializer.supportsReopen()) {
       outStream.close();
       serializer = null;

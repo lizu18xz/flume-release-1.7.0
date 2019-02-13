@@ -87,6 +87,8 @@ public class TaildirSource extends AbstractSource implements
   private boolean fileHeader;
   private String fileHeaderKey;
 
+  private String serviceName;
+
   @Override
   public synchronized void start() {
     logger.info("{} TaildirSource source starting with directory: {}", getName(), filePaths);
@@ -187,6 +189,9 @@ public class TaildirSource extends AbstractSource implements
     fileHeaderKey = context.getString(FILENAME_HEADER_KEY,
             DEFAULT_FILENAME_HEADER_KEY);
 
+    //add by lz 新增,获取系统名称,默认是webLog
+    serviceName=context.getString("serviceName", "webLog");
+
     if (sourceCounter == null) {
       sourceCounter = new SourceCounter(getName());
     }
@@ -225,6 +230,9 @@ public class TaildirSource extends AbstractSource implements
       existingInodes.addAll(reader.updateTailFiles());
       for (long inode : existingInodes) {
         TailFile tf = reader.getTailFiles().get(inode);
+
+        tf.setServiceName(serviceName);
+
         if (tf.needTail()) {
           tailFileProcess(tf, true);
         }

@@ -47,7 +47,7 @@ limitations under the License.
     <stagingDirectory>${project.basedir}/target/docs</stagingDirectory>
 
     <avro.version>1.7.4</avro.version>
-    <elasticsearch.version>0.90.1</elasticsearch.version>
+    <elasticsearch.version>6.4.3</elasticsearch.version>
     <hadoop2.version>2.4.0</hadoop2.version>
     <thrift.version>0.7.0</thrift.version>
     <kafka.version>0.9.0.1</kafka.version>
@@ -715,6 +715,7 @@ limitations under the License.
                   <exclude>**/target/**</exclude>
                   <exclude>**/derby.log</exclude>
                   <exclude>**/metastore_db/</exclude>
+                  <exclude>flume</exclude>
                 </excludes>
               </configuration>
             </execution>
@@ -929,7 +930,19 @@ limitations under the License.
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
-        <version>4.2.1</version>
+        <version>4.5.5</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>4.4.9</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore-nio</artifactId>
+        <version>4.4.9</version>
       </dependency>
 
       <dependency>
@@ -995,6 +1008,24 @@ limitations under the License.
       </dependency>
 
       <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>2.9.5</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.9.5</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-smile</artifactId>
+        <version>2.9.5</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.schwering</groupId>
         <artifactId>irclib</artifactId>
         <version>1.10</version>
@@ -1034,6 +1065,12 @@ limitations under the License.
         <version>${elasticsearch.version}</version>
         <classifier>tests</classifier>
         <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.elasticsearch.client</groupId>
+        <artifactId>elasticsearch-rest-high-level-client</artifactId>
+        <version>${elasticsearch.version}</version>
       </dependency>
 
       <dependency>
@@ -1137,6 +1174,12 @@ limitations under the License.
       <dependency>
         <groupId>org.apache.flume.flume-ng-sinks</groupId>
         <artifactId>flume-ng-elasticsearch-sink</artifactId>
+        <version>1.7.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.flume.flume-ng-sinks</groupId>
+        <artifactId>flume-ng-elasticsearch-high-sink</artifactId>
         <version>1.7.0</version>
       </dependency>
 

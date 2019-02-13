@@ -221,7 +221,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
         }
       }
 
-      //Prevent linger.ms from holding the batch
+      //Prevent(防止) linger.ms from holding the batch,当达到配置的批次数量后，直接刷新，该方法会将数据全部生产到Kafka
       producer.flush();
 
       // publish batch and commit.
@@ -306,7 +306,7 @@ public class KafkaSink extends AbstractSink implements Configurable {
     topic = topicStr;
 
     batchSize = context.getInteger(BATCH_SIZE, DEFAULT_BATCH_SIZE);
-
+    logger.debug("Kafka topic,flumeBatchSize: {},{}", topic,batchSize);
     if (logger.isDebugEnabled()) {
       logger.debug("Using batch size: {}", batchSize);
     }

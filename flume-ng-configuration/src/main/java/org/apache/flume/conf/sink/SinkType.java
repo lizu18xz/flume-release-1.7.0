@@ -105,7 +105,13 @@ public enum SinkType {
    * Hive Sink
    * @see org.apache.flume.sink.hive.HiveSink
    */
-  HIVE("org.apache.flume.sink.hive.HiveSink");
+  HIVE("org.apache.flume.sink.hive.HiveSink"),
+
+
+  /**
+   * add by lz 新增高版本es类型
+   * */
+  ELASTICSEARCH_HIGH("org.apache.flume.sink.elasticsearch.high.ElasticSearchHighSink");
 
   private final String sinkClassName;
 

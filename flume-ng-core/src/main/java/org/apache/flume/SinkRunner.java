@@ -75,7 +75,7 @@ public class SinkRunner implements LifecycleAware {
   @Override
   public void start() {
     SinkProcessor policy = getPolicy();
-
+    logger.info("Current SinkProcessor:"+policy.getClass().getSimpleName());
     policy.start();
 
     runner = new PollingRunner();

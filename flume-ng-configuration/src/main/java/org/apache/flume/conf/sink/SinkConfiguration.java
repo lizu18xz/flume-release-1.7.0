@@ -127,6 +127,9 @@ public class SinkConfiguration extends ComponentConfiguration {
      */
     ELASTICSEARCH("org.apache.flume.sink.elasticsearch.ElasticSearchSinkConfiguration"),
 
+    //add by lz 高版本ES
+    ELASTICSEARCH_HIGH("org.apache.flume.sink.elasticsearch.high.ElasticSearchHighSinkConfiguration"),
+
     /**
      * HBase Sink
      *

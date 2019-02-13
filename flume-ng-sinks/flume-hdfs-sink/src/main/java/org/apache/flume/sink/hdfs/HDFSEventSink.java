@@ -518,6 +518,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
 
   @Override
   public void start() {
+    LOG.info("HDFSEventSink start()......");
     String timeoutName = "hdfs-" + getName() + "-call-runner-%d";
     callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
             new ThreadFactoryBuilder().setNameFormat(timeoutName).build());

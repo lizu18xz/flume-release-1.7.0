@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 
@@ -53,6 +54,8 @@ public class TailFile {
   private byte[] oldBuffer;
   private int bufferPos;
   private long lineReadPos;
+
+  private String serviceName;
 
   public TailFile(File file, Map<String, String> headers, long inode, long pos)
       throws IOException {
@@ -119,6 +122,14 @@ public class TailFile {
     this.lineReadPos = lineReadPos;
   }
 
+  public String getServiceName() {
+    return serviceName;
+  }
+
+  public void setServiceName(String serviceName) {
+    this.serviceName = serviceName;
+  }
+
   public boolean updatePos(String path, long inode, long pos) throws IOException {
     if (this.inode == inode && this.path.equals(path)) {
       setPos(pos);
@@ -161,7 +172,17 @@ public class TailFile {
       updateFilePos(posTmp);
       return null;
     }
-    Event event = EventBuilder.withBody(line.line);
+
+    //add by lz 新增系统名称
+    //logger.info("读取到新增内容:"+new String(line.line, Charset.defaultCharset()));
+    String row=new String(line.line, Charset.defaultCharset());
+    if(row.contains("INFO")==true || row.contains("WARN")==true || row.contains("ERROR")==true ||
+            row.contains("DEBUG")==true){
+      row=serviceName+" "+row;
+    }
+
+    Event event = EventBuilder.withBody(row,Charset.defaultCharset());
+    //Event event = EventBuilder.withBody(line.line);
     if (addByteOffset == true) {
       event.getHeaders().put(BYTE_OFFSET_HEADER_KEY, posTmp.toString());
     }

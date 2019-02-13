@@ -19,29 +19,33 @@ package org.apache.flume.sink;
 
 import java.util.List;
 
-import org.apache.flume.Context;
-import org.apache.flume.EventDeliveryException;
-import org.apache.flume.Sink;
+import org.apache.flume.*;
 import org.apache.flume.Sink.Status;
-import org.apache.flume.SinkProcessor;
 import org.apache.flume.conf.ComponentConfiguration;
 import org.apache.flume.conf.ConfigurableComponent;
 import org.apache.flume.lifecycle.LifecycleState;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Default sink processor that only accepts a single sink, passing on process
  * results without any additional handling. Suitable for all sinks that aren't
  * assigned to a group.
  */
+
 public class DefaultSinkProcessor implements SinkProcessor, ConfigurableComponent {
   private Sink sink;
   private LifecycleState lifecycleState;
 
+  private static final Logger logger = LoggerFactory
+          .getLogger(DefaultSinkProcessor.class);
+
   @Override
   public void start() {
     Preconditions.checkNotNull(sink, "DefaultSinkProcessor sink not set");
+    logger.info("start sink:"+sink.getClass().getSimpleName());
     sink.start();
     lifecycleState = LifecycleState.START;
   }

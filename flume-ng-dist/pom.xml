@@ -154,7 +154,7 @@
     </dependency>
     <dependency>
       <groupId>org.apache.flume.flume-ng-sinks</groupId>
-      <artifactId>flume-ng-elasticsearch-sink</artifactId>
+      <artifactId>flume-ng-elasticsearch-high-sink</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.flume.flume-ng-sinks</groupId>
