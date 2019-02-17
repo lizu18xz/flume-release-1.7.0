@@ -96,7 +96,7 @@ public class MemoryChannel extends BasicChannelSemantics {
     protected Event doTake() throws InterruptedException {
       channelCounter.incrementEventTakeAttemptCount();
       if (takeList.remainingCapacity() == 0) {
-        //获取不到数据的时候，可以考虑加快提交的速度，增加容量或者线程
+        //获取不到数据的时候，可以考虑加快提交的速度，增加容量或者线程,获取减小  sink bacthsize
         throw new ChannelException("Take list for MemoryTransaction, capacity " +
             takeList.size() + " full, consider committing more frequently, " +
             "increasing capacity, or increasing thread count");
@@ -131,6 +131,7 @@ public class MemoryChannel extends BasicChannelSemantics {
         }
         if (!queueRemaining.tryAcquire(-remainingChange, keepAlive, TimeUnit.SECONDS)) {
           bytesRemaining.release(putByteCounter);
+          //获取不到提交到队列的空间了,source可能速度大于sink,或者  channel size设置过小
           throw new ChannelFullException("Space for commit to queue couldn't be acquired." +
               " Sinks are likely not keeping up with sources, or the buffer size is too tight");
         }

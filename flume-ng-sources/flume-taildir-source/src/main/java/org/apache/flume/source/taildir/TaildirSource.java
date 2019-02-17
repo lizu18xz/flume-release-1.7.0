@@ -231,6 +231,7 @@ public class TaildirSource extends AbstractSource implements
       for (long inode : existingInodes) {
         TailFile tf = reader.getTailFiles().get(inode);
 
+        //add by lz
         tf.setServiceName(serviceName);
 
         if (tf.needTail()) {
