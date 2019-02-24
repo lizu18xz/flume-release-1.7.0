@@ -92,12 +92,18 @@ import static scala.collection.JavaConverters.asJavaListConverter;
  * <tt>useFlumeEventFormat: </tt> Reads events from Kafka Topic as an Avro FlumeEvent. Used
  * in conjunction with useFlumeEventFormat (Kafka Sink) or parseAsFlumeEvent (Kafka Channel)
  * <p>
+ *
+ *  Kafka Source保证至少一次消息检索策略。
+ *  Kafka source guarantees at least once strategy of messages retrieval.
+ *  The Kafka Source overrides two Kafka consumer parameters:
+ *  auto.commit.enable is set to “false” by the source and every batch is committed.
+ *  Modification of these parameters is not recommended.
  */
 public class KafkaSource extends AbstractPollableSource
         implements Configurable {
   private static final Logger log = LoggerFactory.getLogger(KafkaSource.class);
 
-  // Constants used only for offset migration zookeeper connections
+  // Constants used only for offset migration zookeeper connections 仅用于偏移 迁移 ZooKeeper连接
   private static final int ZK_SESSION_TIMEOUT = 30000;
   private static final int ZK_CONNECTION_TIMEOUT = 30000;
 
@@ -189,24 +195,31 @@ public class KafkaSource extends AbstractPollableSource
       // prepare time variables for new batch
       final long nanoBatchStartTime = System.nanoTime();
       final long batchStartTime = System.currentTimeMillis();
+
+      //批处理等待的最大毫秒数
       final long maxBatchEndTime = System.currentTimeMillis() + maxBatchDurationMillis;
 
+      //如果获取到evevt的数量小于设置的批次,则继续获取,否则提交当前批次到channel,然后清空eventList
       while (eventList.size() < batchUpperLimit &&
               System.currentTimeMillis() < maxBatchEndTime) {
 
+        //拉取一批次处理
         if (it == null || !it.hasNext()) {
           // Obtaining new records
-          // Poll time is remainder time for current batch.
+          // Poll time is remainder time for current batch. 初始化消费者
           ConsumerRecords<String, byte[]> records = consumer.poll(
                   Math.max(0, maxBatchEndTime - System.currentTimeMillis()));
           it = records.iterator();
 
           // this flag is set to true in a callback when some partitions are revoked.
           // If there are any records we commit them.
-          if (rebalanceFlag.get()) {
-            rebalanceFlag.set(false);
+          //这里说明进行了重新分配,遇到这种情况立即跳出去处理(放到 Channel 并向 kafka 确认)
+
+          if (rebalanceFlag.compareAndSet(true, false)) {
+            //invalidAll();
             break;
           }
+
           // check records after poll
           if (!it.hasNext()) {
             if (log.isDebugEnabled()) {
@@ -223,6 +236,7 @@ public class KafkaSource extends AbstractPollableSource
         kafkaKey = message.key();
         kafkaMessage = message.value();
 
+        //是否使用这种格式
         if (useAvroEventFormat) {
           //Assume the event is in Avro format using the AvroFlumeEvent schema
           //Will need to catch the exception if it is not
@@ -239,13 +253,18 @@ public class KafkaSource extends AbstractPollableSource
 
           eventBody = avroevent.getBody().array();
           headers = toStringMap(avroevent.getHeaders());
+
         } else {
+
+          //不使用的时候,可以直接获取到消息内容
+
           eventBody = message.value();
           headers.clear();
           headers = new HashMap<String, String>(4);
         }
 
         // Add headers to event (timestamp, topic, partition, key) only if they don't exist
+        // 设置消息信息到event里面
         if (!headers.containsKey(KafkaSourceConstants.TIMESTAMP_HEADER)) {
           headers.put(KafkaSourceConstants.TIMESTAMP_HEADER,
               String.valueOf(System.currentTimeMillis()));
@@ -276,6 +295,7 @@ public class KafkaSource extends AbstractPollableSource
           }
         }
 
+        //组装消息信息到event,加入到批次里面
         event = EventBuilder.withBody(eventBody, headers);
         eventList.add(event);
 
@@ -285,13 +305,19 @@ public class KafkaSource extends AbstractPollableSource
         }
 
         // For each partition store next offset that is going to be read.
+        // 对于每个分区，存储将要读取的下一个偏移量
         tpAndOffsetMetadata.put(new TopicPartition(message.topic(), message.partition()),
                 new OffsetAndMetadata(message.offset() + 1, batchUUID));
       }
 
+      //开始提交一批次到channel中,提交偏移量到kafka
       if (eventList.size() > 0) {
         counter.addToKafkaEventGetTimer((System.nanoTime() - nanoBatchStartTime) / (1000 * 1000));
         counter.addToEventReceivedCount((long) eventList.size());
+        //提交一批次到channel中,需要时间
+
+        //注意:如果新增了一个消费者,这里耗时过久的话,另一个消费者已经启动,可能会造成还没有提交到kafka,导致这些没有被提交的数据会被重复消费
+
         getChannelProcessor().processEventBatch(eventList);
         counter.addToEventAcceptedCount(eventList.size());
         if (log.isDebugEnabled()) {
@@ -299,6 +325,7 @@ public class KafkaSource extends AbstractPollableSource
         }
         eventList.clear();
 
+        //提交偏移量到kafka,同步提交 CommitFailedException
         if (!tpAndOffsetMetadata.isEmpty()) {
           long commitStartTime = System.nanoTime();
           consumer.commitSync(tpAndOffsetMetadata);
@@ -313,6 +340,39 @@ public class KafkaSource extends AbstractPollableSource
     } catch (Exception e) {
       log.error("KafkaSource EXCEPTION, {}", e);
       return Status.BACKOFF;
+    }
+  }
+
+  /**
+   * 解决 重复消费数据的问题
+   * 在 Kafka 回收，分配过程 (rebalance) 中，已经接收到 Flume 端但还未被 Flume 放到 Channel 的 Records
+   * (自然也就没有向 Kafka 确认) 就被Kafka 认为未被消费；特别是属于将来被分配给其他 Flume 实例的 Partition 上的 Records，
+   * 就会再次被新的 Flume 实例消费，造成重复加载
+   *
+   * 原理:
+   * 把当前获取的消费的数据,(因为还没有提交到channel也没有提交到kafka)直接清空,重新设置kafka的seek,意思是在重新读取一遍
+   * 参考:
+   * https://github.com/hejiang2000/flume/blob/hejiang-kafka-source/flume-ng-sources/flume-kafka-source/src/main/java/org/apache/flume/source/kafka/KafkaSource.java
+   */
+  private void invalidAll() {
+    // invalidate remaining records
+    it = null;
+    // and drop processed events
+    eventList.clear();
+    tpAndOffsetMetadata.clear();
+    // and seek to committed offsets
+    for (Map.Entry<String, List<PartitionInfo>> es : consumer.listTopics().entrySet()) {
+      for (PartitionInfo pi : es.getValue()) {
+        TopicPartition tp = new TopicPartition(pi.topic(), pi.partition());
+        try {
+          OffsetAndMetadata oam = consumer.committed(tp);
+          if (oam != null) {
+            consumer.seek(tp, oam.offset());
+          }
+        } catch (Exception e) {
+          // log.warn("ignore seeking exception, {}", e);
+        }
+      }
     }
   }
 
@@ -339,6 +399,7 @@ public class KafkaSource extends AbstractPollableSource
     // See https://issues.apache.org/jira/browse/FLUME-2896
     translateOldProperties(context);
 
+    //获取Kafka topic
     String topicProperty = context.getString(KafkaSourceConstants.TOPICS_REGEX);
     if (topicProperty != null && !topicProperty.isEmpty()) {
       // create subscriber that uses pattern-based subscription
@@ -372,6 +433,9 @@ public class KafkaSource extends AbstractPollableSource
       if (zookeeperConnect == null || zookeeperConnect.isEmpty()) {
         throw new ConfigurationException("Bootstrap Servers must be specified");
       } else {
+
+        //如果配置zk,则从zk元数据仓库中获取kafka server的信息
+
         // For backwards compatibility look up the bootstrap from zookeeper
         log.warn("{} is deprecated. Please use the parameter {}",
             KafkaSourceConstants.ZOOKEEPER_CONNECT_FLUME_KEY,
@@ -389,6 +453,7 @@ public class KafkaSource extends AbstractPollableSource
       }
     }
 
+    //获取groupId
     String groupIdProperty =
         context.getString(KAFKA_CONSUMER_PREFIX + ConsumerConfig.GROUP_ID_CONFIG);
     if (groupIdProperty != null && !groupIdProperty.isEmpty()) {
@@ -400,6 +465,7 @@ public class KafkaSource extends AbstractPollableSource
       log.info("Group ID was not specified. Using {} as the group id.", groupId);
     }
 
+    //设置kafka consumer自己的参数
     setConsumerProps(context);
 
     if (log.isDebugEnabled() && LogPrivacyUtil.allowLogPrintConfig()) {
@@ -492,7 +558,7 @@ public class KafkaSource extends AbstractPollableSource
 
   @Override
   protected void doStart() throws FlumeException {
-    log.info("Starting {}...", this);
+    log.info("Starting kafka source{}...", this);
 
     // As a migration step check if there are any offsets from the group stored in kafka
     // If not read them from Zookeeper and commit them to Kafka
@@ -602,6 +668,11 @@ public class KafkaSource extends AbstractPollableSource
   }
 }
 
+//监听 是否进行了重新分配
+/**
+ * Kafka 数据消费是以 Partition 为单位的，即一个 Partition 只能被一个 Flume 实例消费。
+ * 当启动第二个 Flume 实例时，Kafka 会把已经分配给第一个 Flume 实例的 Partition 回收(revoke)后，然后重新分配
+ * */
 class SourceRebalanceListener implements ConsumerRebalanceListener {
   private static final Logger log = LoggerFactory.getLogger(SourceRebalanceListener.class);
   private AtomicBoolean rebalanceFlag;
@@ -611,6 +682,7 @@ class SourceRebalanceListener implements ConsumerRebalanceListener {
   }
 
   // Set a flag that a rebalance has occurred. Then commit already read events to kafka.
+  //发生再均衡 通知consumer 任务被取消了
   public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
     for (TopicPartition partition : partitions) {
       log.info("topic {} - partition {} revoked.", partition.topic(), partition.partition());
@@ -618,6 +690,7 @@ class SourceRebalanceListener implements ConsumerRebalanceListener {
     }
   }
 
+  //重新分配partition之后和消费者开始读取消息之前被调用。 通知consumer新的任务来了
   public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
     for (TopicPartition partition : partitions) {
       log.info("topic {} - partition {} assigned.", partition.topic(), partition.partition());
