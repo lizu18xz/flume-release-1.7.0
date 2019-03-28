@@ -228,7 +228,7 @@ class BucketWriter {
           + fullFileName + inUseSuffix;
         targetPath = filePath + "/" + fullFileName;
 
-        LOG.info("Creating " + bucketPath);
+        LOG.info("Creating bucketPath 路径~~~~~" + bucketPath);
         callWithTimeout(new CallRunner<Void>() {
           @Override
           public Void call() throws Exception {
@@ -294,6 +294,9 @@ class BucketWriter {
    * based rolling closes this file.
    * @throws IOException On failure to rename if temp file exists.
    * @throws InterruptedException
+   *
+   * 关闭文件句柄并将临时文件重命名为永久文件名。
+   *
    */
   public synchronized void close() throws IOException, InterruptedException {
     close(false);
@@ -554,7 +557,7 @@ class BucketWriter {
       throw e;
     }
 
-    // update statistics
+    // update statistics 累加数据的大小
     processSize += event.getBody().length;
     eventCounter++;
     batchCounter++;
@@ -582,6 +585,7 @@ class BucketWriter {
       doRotate = true;
     }
 
+    //这里判断 a1.sinks.k1.hdfs.rollSize = 1048576,如果设置的rollSize小于已经写入的大小,就需要进行滚动
     if ((rollSize > 0) && (rollSize <= processSize)) {
       LOG.debug("rolling: rollSize: {}, bytes: {}", rollSize, processSize);
       doRotate = true;

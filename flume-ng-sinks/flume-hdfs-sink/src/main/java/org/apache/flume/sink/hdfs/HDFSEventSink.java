@@ -57,7 +57,10 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
+/**
+ * 代码结构:
+ * BucketWriter---->HDFSWriter
+ * */
 public class HDFSEventSink extends AbstractSink implements Configurable {
   public interface WriterCallback {
     public void run(String filePath);
@@ -350,6 +353,8 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
    * Ensure the file is open. Serialize the data and write it to the file on
    * HDFS. <br/>
    * This method is not thread safe.
+   *
+   * 调大HdfsSink的batchSize，增加吞吐量，减少hdfs的flush次数
    */
   public Status process() throws EventDeliveryException {
     Channel channel = getChannel();
@@ -389,7 +394,12 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
           bucketWriter = sfWriters.get(lookupPath);
           // we haven't seen this file yet, so open it and cache the handle
           if (bucketWriter == null) {
+
+            //获取具体hdfswriter的实现类
             hdfsWriter = writerFactory.getWriter(fileType);
+
+            //根据配置的文件信息 获取到一个bucketWriter,实际写入到HDFS是通过bucketWriter
+
             bucketWriter = initializeBucketWriter(realPath, realName,
               lookupPath, hdfsWriter, closeCallback);
             sfWriters.put(lookupPath, bucketWriter);
@@ -523,6 +533,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
     callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
             new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
 
+    //定时滚动
     String rollerName = "hdfs-" + getName() + "-roll-timer-%d";
     timedRollerPool = Executors.newScheduledThreadPool(rollTimerPoolSize,
             new ThreadFactoryBuilder().setNameFormat(rollerName).build());

@@ -81,6 +81,7 @@ public class HDFSDataStream extends AbstractHDFSWriter {
       outStream = hdfs.create(dstPath);
     }
 
+    //构造一个serializer, Flume 默认的 serializerType 配置是 TEXT，即使用 BodyTextEventSerializer 来序列化数据
     serializer = EventSerializerFactory.getInstance(
         serializerType, serializerContext, outStream);
 
